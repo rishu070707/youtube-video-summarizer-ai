@@ -1,0 +1,31 @@
+
+version: '3.8'
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    volumes:
+      - ./backend:/app
+    environment:
+      - PORT=4000
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "4000:4000"
+    depends_on:
+      - redis
+
+  worker:
+    build: ./worker
+    volumes:
+      - ./worker:/worker
+      - ./backend:/backend
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - FIREBASE_CREDENTIALS=/backend/serviceAccountKey.json
+    depends_on:
+      - redis
+      - backend

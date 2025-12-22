@@ -1,0 +1,22 @@
+# Python virtual environment
+.venv/
+venv/
+
+# Generated work/output files
+work/
+backend/work/
+worker/work/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# Env files
+.env
+
+# OS / Editor junk
+.DS_Store
+.vscode/

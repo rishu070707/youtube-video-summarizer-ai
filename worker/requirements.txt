@@ -1,0 +1,9 @@
+
+yt-dlp
+ffmpeg-python
+pydub
+requests
+redis
+rq
+python-dotenv
+# For real usage, add: whisperx, openai, scenedetect, sentence-transformers, qdrant-client, faiss-cpu
