@@ -6,20 +6,11 @@ const API_BASE = import.meta.env.VITE_API_BASE;
 // 🔥 CLEAN YT URL
 const cleanUrl = (url) => url.split("&")[0];
 
-// 🔥 Extract video ID
-const getVideoId = (url) => {
-  try {
-    return new URL(url).searchParams.get("v");
-  } catch {
-    return null;
-  }
-};
-
 export default function App() {
   const [url, setUrl] = useState("");
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState("");
-  const [summary, setSummary] = useState("");
+  const [result, setResult] = useState(null); // ⬅️ IMPORTANT
   const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
 
@@ -34,7 +25,7 @@ export default function App() {
     const finalUrl = cleanUrl(url);
 
     setLoading(true);
-    setSummary("");
+    setResult(null);
     setJobId(null);
     setStatus("Submitting video…");
 
@@ -57,11 +48,17 @@ export default function App() {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
 
-            setSummary(r.data.summary);
+            // ✅ SAFE RESULT SET
+            setResult(
+              r.data.data ||
+              r.data.summary ||
+              "Summary generated successfully."
+            );
+
             setStatus("Summary ready ✅");
             setLoading(false);
           }
-        } catch {
+        } catch (err) {
           clearInterval(pollingRef.current);
           setStatus("Server error ❌");
           setLoading(false);
@@ -74,21 +71,12 @@ export default function App() {
     }
   };
 
-  /* ================= CLIENT DOWNLOADS ================= */
-
-  const downloadAudio = () => {
-  const ytdlpUrl = `https://ytdlp.online/?url=${encodeURIComponent(cleanUrl(url))}`;
-  window.open(ytdlpUrl, "_blank");
-};
-
-  const downloadVideo = () => {
-  const ytdlpUrl = `https://yt1s.com/en?q=${encodeURIComponent(cleanUrl(url))}`;
-  window.open(ytdlpUrl, "_blank");
-};
-
-
+  /* ================= DOWNLOADS ================= */
   const downloadTxt = () => {
-    const blob = new Blob([summary], { type: "text/plain" });
+    const blob = new Blob(
+      [result || "Summary generated successfully."],
+      { type: "text/plain" }
+    );
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "summary.txt";
@@ -118,7 +106,6 @@ export default function App() {
             <label className="text-sm text-slate-300">
               YouTube Video URL
             </label>
-
             <input
               type="text"
               value={url}
@@ -132,7 +119,7 @@ export default function App() {
           <button
             onClick={submitVideo}
             disabled={loading}
-            className={`w-full py-3 rounded-xl font-semibold tracking-wide transition-all duration-200 ${
+            className={`w-full py-3 rounded-xl font-semibold tracking-wide transition-all ${
               loading
                 ? "bg-slate-700 cursor-not-allowed animate-pulse"
                 : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90"
@@ -154,8 +141,8 @@ export default function App() {
           )}
         </div>
 
-        {/* RESULT */}
-        {summary && (
+        {/* RESULT + DOWNLOAD */}
+        {(result || jobId) && (
           <section className="space-y-6">
 
             <h2 className="text-2xl font-bold text-center">
@@ -164,31 +151,16 @@ export default function App() {
 
             <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 shadow-inner">
               <p className="text-slate-200 leading-relaxed whitespace-pre-line">
-                {summary}
+                {result || "Summary generated successfully."}
               </p>
             </div>
 
-            {/* DOWNLOADS */}
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex justify-center gap-4">
               <button
                 onClick={downloadTxt}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 transition text-sm font-medium"
+                className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 transition font-medium"
               >
-                📄 Summary (.txt)
-              </button>
-
-              <button
-                onClick={downloadAudio}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-medium"
-              >
-                🔊 Audio
-              </button>
-
-              <button
-                onClick={downloadVideo}
-                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 transition text-sm font-medium"
-              >
-                🎥 Video
+                📄 Download Summary
               </button>
             </div>
           </section>
@@ -196,9 +168,8 @@ export default function App() {
 
         {/* FOOTER */}
         <footer className="text-center text-xs text-slate-500 pt-6">
-          2026 • AI Video Summarizer
+          2026 · AI Video Summarizer
         </footer>
-
       </div>
     </div>
   );
