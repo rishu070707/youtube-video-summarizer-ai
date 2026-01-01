@@ -3,7 +3,7 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-// clean YouTube URL
+// clean youtube url
 const cleanUrl = (url) => url.split("&")[0];
 
 export default function App() {
@@ -12,17 +12,15 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
-  const pollingRef = useRef(null);
+  const pollRef = useRef(null);
 
   useEffect(() => {
-    return () => pollingRef.current && clearInterval(pollingRef.current);
+    return () => pollRef.current && clearInterval(pollRef.current);
   }, []);
 
   /* ================= SUBMIT ================= */
   const submitVideo = async () => {
     if (!url.trim() || loading) return;
-
-    const finalUrl = cleanUrl(url);
 
     setLoading(true);
     setSummary("");
@@ -31,29 +29,22 @@ export default function App() {
 
     try {
       const res = await axios.post(`${API_BASE}/api/video/submit`, {
-        url: finalUrl,
+        url: cleanUrl(url),
       });
 
       const id = res.data.jobId;
       setJobId(id);
       setStatus("Processing video… ⏳");
 
-      pollingRef.current = setInterval(async () => {
-        try {
-          const r = await axios.get(
-            `${API_BASE}/api/video/result/${id}`
-          );
+      pollRef.current = setInterval(async () => {
+        const r = await axios.get(
+          `${API_BASE}/api/video/result/${id}`
+        );
 
-          if (r.data.ready) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-            setSummary(r.data.data);
-            setStatus("Summary ready ✅");
-            setLoading(false);
-          }
-        } catch {
-          clearInterval(pollingRef.current);
-          setStatus("Server error ❌");
+        if (r.data.ready) {
+          clearInterval(pollRef.current);
+          setSummary(r.data.data);
+          setStatus("Summary ready ✅");
           setLoading(false);
         }
       }, 3000);
@@ -64,26 +55,29 @@ export default function App() {
     }
   };
 
-  /* ================= DOWNLOAD SUMMARY ================= */
+  /* ================= DOWNLOADS ================= */
+
+  // summary txt
   const downloadSummary = () => {
     const blob = new Blob([summary], { type: "text/plain" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "summary.txt";
-    link.click();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "summary.txt";
+    a.click();
   };
 
-  /* ================= CLIENT-SIDE DOWNLOAD REDIRECTS ================= */
+  // video download (client-side redirect)
   const downloadVideo = () => {
     window.open(
-      `https://ytdlp.nu/?url=${encodeURIComponent(cleanUrl(url))}`,
+      `https://yt1s.com/en?q=${encodeURIComponent(cleanUrl(url))}`,
       "_blank"
     );
   };
 
+  // audio download (client-side redirect)
   const downloadAudio = () => {
     window.open(
-      `https://yt1s.com/en?q=${encodeURIComponent(cleanUrl(url))}`,
+      `https://y2mate.is/en?q=${encodeURIComponent(cleanUrl(url))}`,
       "_blank"
     );
   };
@@ -95,7 +89,9 @@ export default function App() {
 
         {/* HEADER */}
         <header className="text-center space-y-2">
-          <h1 className="text-4xl font-extrabold">🎬 AI Video Summarizer</h1>
+          <h1 className="text-4xl font-extrabold">
+            🎬 AI Video Summarizer
+          </h1>
           <p className="text-slate-400 text-sm">
             Paste a YouTube link • Get AI summary • Download client-side
           </p>
@@ -103,12 +99,11 @@ export default function App() {
 
         {/* INPUT CARD */}
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 space-y-6">
-
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=..."
-            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700 focus:border-blue-500 outline-none"
+            placeholder="https://youtube.com/watch?v=..."
+            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700"
           />
 
           <button
@@ -116,52 +111,51 @@ export default function App() {
             disabled={loading}
             className={`w-full py-3 rounded-xl font-semibold ${
               loading
-                ? "bg-slate-700 cursor-not-allowed"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90"
+                ? "bg-slate-700"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600"
             }`}
           >
             {loading ? "Analyzing…" : "✨ Generate Summary"}
           </button>
 
           {status && (
-            <p className="text-center text-blue-300 text-sm">{status}</p>
+            <p className="text-center text-blue-300">{status}</p>
           )}
         </div>
 
         {/* SUMMARY */}
         {summary && (
           <section className="space-y-6">
+            <h2 className="text-2xl font-bold text-center">
+              📄 Video Summary
+            </h2>
 
-            <h2 className="text-2xl font-bold text-center">📄 Video Summary</h2>
-
-            <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 whitespace-pre-line">
+            <div className="bg-black/40 border border-slate-700 rounded-xl p-6 whitespace-pre-line">
               {summary}
             </div>
 
             {/* DOWNLOAD BUTTONS */}
             <div className="flex flex-wrap justify-center gap-4">
-
               <button
                 onClick={downloadSummary}
-                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700"
+                className="px-5 py-2 rounded-xl bg-emerald-600"
               >
-                📄 Download Summary
-              </button>
-
-              <button
-                onClick={downloadVideo}
-                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700"
-              >
-                🎥 Download Video
+                📄 Summary (.txt)
               </button>
 
               <button
                 onClick={downloadAudio}
-                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700"
+                className="px-5 py-2 rounded-xl bg-indigo-600"
               >
-                🔊 Download Audio
+                🔊 Audio
               </button>
 
+              <button
+                onClick={downloadVideo}
+                className="px-5 py-2 rounded-xl bg-rose-600"
+              >
+                🎥 Video
+              </button>
             </div>
           </section>
         )}
@@ -169,7 +163,6 @@ export default function App() {
         <footer className="text-center text-xs text-slate-500">
           2026 • AI Video Summarizer
         </footer>
-
       </div>
     </div>
   );
