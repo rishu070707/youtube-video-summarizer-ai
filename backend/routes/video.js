@@ -15,19 +15,9 @@ router.post("/submit", async (req, res) => {
   await Job.create({
     jobId,
     youtubeUrl: url,
-    status: "processing",
+    status: "completed",
+    summary: "⚠️ Demo summary. Replace with AI pipeline.",
   });
-
-  // 🔥 simulate AI summary (replace with real AI later)
-  setTimeout(async () => {
-    await Job.updateOne(
-      { jobId },
-      {
-        status: "completed",
-        summary: "This is an AI-generated summary of the video.",
-      }
-    );
-  }, 3000);
 
   res.json({ jobId });
 });
@@ -38,14 +28,11 @@ router.post("/submit", async (req, res) => {
 router.get("/result/:jobId", async (req, res) => {
   const job = await Job.findOne({ jobId: req.params.jobId });
 
-  if (!job || job.status !== "completed") {
-    return res.json({ ready: false });
-  }
+  if (!job) return res.json({ ready: false });
 
   res.json({
     ready: true,
-    summary: job.summary,
-    youtubeUrl: job.youtubeUrl,
+    data: job.summary,
   });
 });
 

@@ -77,26 +77,15 @@ export default function App() {
   /* ================= CLIENT DOWNLOADS ================= */
 
   const downloadAudio = () => {
-    const id = getVideoId(url);
-    if (!id) return;
-
-    // Audio-only (m4a / mp3 stream)
-    window.open(
-      `https://yewtu.be/latest_version?id=${id}&itag=140`,
-      "_blank"
-    );
-  };
+  const ytdlpUrl = `https://ytdlp.online/?url=${encodeURIComponent(cleanUrl(url))}`;
+  window.open(ytdlpUrl, "_blank");
+};
 
   const downloadVideo = () => {
-    const id = getVideoId(url);
-    if (!id) return;
+  const ytdlpUrl = `https://yt1s.com/en?q=${encodeURIComponent(cleanUrl(url))}`;
+  window.open(ytdlpUrl, "_blank");
+};
 
-    // Best combined stream
-    window.open(
-      `https://yewtu.be/latest_version?id=${id}`,
-      "_blank"
-    );
-  };
 
   const downloadTxt = () => {
     const blob = new Blob([summary], { type: "text/plain" });
