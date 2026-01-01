@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = "https://youtube-video-summarizer-ai.onrender.com";
 
 // 🔥 CLEAN YT URL (VERY IMPORTANT)
 const cleanUrl = (url) => url.split("&")[0];
