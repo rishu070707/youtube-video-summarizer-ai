@@ -3,14 +3,14 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-// 🔥 CLEAN YT URL
+// clean YouTube URL
 const cleanUrl = (url) => url.split("&")[0];
 
 export default function App() {
   const [url, setUrl] = useState("");
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState(null); // ⬅️ IMPORTANT
+  const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
 
@@ -25,7 +25,7 @@ export default function App() {
     const finalUrl = cleanUrl(url);
 
     setLoading(true);
-    setResult(null);
+    setSummary("");
     setJobId(null);
     setStatus("Submitting video…");
 
@@ -47,18 +47,11 @@ export default function App() {
           if (r.data.ready) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
-
-            // ✅ SAFE RESULT SET
-            setResult(
-              r.data.data ||
-              r.data.summary ||
-              "Summary generated successfully."
-            );
-
+            setSummary(r.data.data);
             setStatus("Summary ready ✅");
             setLoading(false);
           }
-        } catch (err) {
+        } catch {
           clearInterval(pollingRef.current);
           setStatus("Server error ❌");
           setLoading(false);
@@ -71,16 +64,28 @@ export default function App() {
     }
   };
 
-  /* ================= DOWNLOADS ================= */
-  const downloadTxt = () => {
-    const blob = new Blob(
-      [result || "Summary generated successfully."],
-      { type: "text/plain" }
-    );
+  /* ================= DOWNLOAD SUMMARY ================= */
+  const downloadSummary = () => {
+    const blob = new Blob([summary], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "summary.txt";
     link.click();
+  };
+
+  /* ================= CLIENT-SIDE DOWNLOAD REDIRECTS ================= */
+  const downloadVideo = () => {
+    window.open(
+      `https://ytdlp.nu/?url=${encodeURIComponent(cleanUrl(url))}`,
+      "_blank"
+    );
+  };
+
+  const downloadAudio = () => {
+    window.open(
+      `https://yt1s.com/en?q=${encodeURIComponent(cleanUrl(url))}`,
+      "_blank"
+    );
   };
 
   /* ================= UI ================= */
@@ -90,86 +95,81 @@ export default function App() {
 
         {/* HEADER */}
         <header className="text-center space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tight">
-            🎬 AI Video Summarizer
-          </h1>
+          <h1 className="text-4xl font-extrabold">🎬 AI Video Summarizer</h1>
           <p className="text-slate-400 text-sm">
             Paste a YouTube link • Get AI summary • Download client-side
           </p>
         </header>
 
-        {/* CARD */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 space-y-6">
+        {/* INPUT CARD */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 space-y-6">
 
-          {/* INPUT */}
-          <div className="space-y-2">
-            <label className="text-sm text-slate-300">
-              YouTube Video URL
-            </label>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=..."
-              className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 outline-none transition"
-            />
-          </div>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700 focus:border-blue-500 outline-none"
+          />
 
-          {/* BUTTON */}
           <button
             onClick={submitVideo}
             disabled={loading}
-            className={`w-full py-3 rounded-xl font-semibold tracking-wide transition-all ${
+            className={`w-full py-3 rounded-xl font-semibold ${
               loading
-                ? "bg-slate-700 cursor-not-allowed animate-pulse"
+                ? "bg-slate-700 cursor-not-allowed"
                 : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90"
             }`}
           >
-            {loading ? "Analyzing video…" : "✨ Generate Summary"}
+            {loading ? "Analyzing…" : "✨ Generate Summary"}
           </button>
 
-          {/* STATUS */}
           {status && (
-            <div className="text-center space-y-1">
-              {jobId && (
-                <p className="text-xs text-emerald-400 font-mono">
-                  Job ID: {jobId}
-                </p>
-              )}
-              <p className="text-blue-300">{status}</p>
-            </div>
+            <p className="text-center text-blue-300 text-sm">{status}</p>
           )}
         </div>
 
-        {/* RESULT + DOWNLOAD */}
-        {(result || jobId) && (
+        {/* SUMMARY */}
+        {summary && (
           <section className="space-y-6">
 
-            <h2 className="text-2xl font-bold text-center">
-              📄 Video Summary
-            </h2>
+            <h2 className="text-2xl font-bold text-center">📄 Video Summary</h2>
 
-            <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 shadow-inner">
-              <p className="text-slate-200 leading-relaxed whitespace-pre-line">
-                {result || "Summary generated successfully."}
-              </p>
+            <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 whitespace-pre-line">
+              {summary}
             </div>
 
-            <div className="flex justify-center gap-4">
+            {/* DOWNLOAD BUTTONS */}
+            <div className="flex flex-wrap justify-center gap-4">
+
               <button
-                onClick={downloadTxt}
-                className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 transition font-medium"
+                onClick={downloadSummary}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700"
               >
                 📄 Download Summary
               </button>
+
+              <button
+                onClick={downloadVideo}
+                className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700"
+              >
+                🎥 Download Video
+              </button>
+
+              <button
+                onClick={downloadAudio}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700"
+              >
+                🔊 Download Audio
+              </button>
+
             </div>
           </section>
         )}
 
-        {/* FOOTER */}
-        <footer className="text-center text-xs text-slate-500 pt-6">
-          2026 · AI Video Summarizer
+        <footer className="text-center text-xs text-slate-500">
+          2026 • AI Video Summarizer
         </footer>
+
       </div>
     </div>
   );
