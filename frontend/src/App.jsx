@@ -1,66 +1,45 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import axios from "axios";
-import React from "react";
+
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-// Clean YouTube URL
 const cleanUrl = (url) => url.split("&")[0];
 
 export default function App() {
   const [url, setUrl] = useState("");
-  const [jobId, setJobId] = useState(null);
-  const [status, setStatus] = useState("");
   const [summary, setSummary] = useState("");
+  const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
-  const pollRef = useRef(null);
 
-  useEffect(() => {
-    return () => pollRef.current && clearInterval(pollRef.current);
-  }, []);
-
-  /* ================= SUBMIT ================= */
   const submitVideo = async () => {
-    if (!url || loading) return;
+    if (!url.trim()) return;
 
     setLoading(true);
     setSummary("");
-    setStatus("Submitting video…");
+    setStatus("Generating summary… ⏳");
 
     try {
-      const res = await axios.post(`${API_BASE}/api/video/submit`, {
+      const res = await axios.post(`${API_BASE}/api/video/summary`, {
         url: cleanUrl(url),
       });
 
-      const id = res.data.jobId;
-      setJobId(id);
-      setStatus("Processing video… ⏳");
-
-      pollRef.current = setInterval(async () => {
-        const r = await axios.get(
-          `${API_BASE}/api/video/result/${id}`
-        );
-
-        if (r.data.ready) {
-          clearInterval(pollRef.current);
-          setSummary(r.data.data);
-          setStatus("Summary ready ✅");
-          setLoading(false);
-        }
-      }, 3000);
-    } catch (e) {
-      console.error(e);
+      setSummary(res.data.summary);
+      setStatus("Summary ready ✅");
+    } catch (err) {
+      console.error(err);
       setStatus("Submission failed ❌");
+    } finally {
       setLoading(false);
     }
   };
 
-  /* ================= DOWNLOADS ================= */
-  const downloadSummary = () => {
+  /* ===== CLIENT-SIDE DOWNLOADS ===== */
+  const downloadTxt = () => {
     const blob = new Blob([summary], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "summary.txt";
-    a.click();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "summary.txt";
+    link.click();
   };
 
   const downloadAudio = () => {
@@ -72,69 +51,55 @@ export default function App() {
 
   const downloadVideo = () => {
     window.open(
-      `https://y2mate.is/youtube/${encodeURIComponent(cleanUrl(url))}`,
+      `https://y2mate.nu/en/search/${encodeURIComponent(cleanUrl(url))}`,
       "_blank"
     );
   };
 
-  /* ================= UI ================= */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#020617] via-slate-900 to-black text-white px-6 py-16">
-      <div className="max-w-3xl mx-auto space-y-10">
+    <div className="min-h-screen bg-gradient-to-br from-[#020617] via-slate-900 to-black text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-4xl space-y-10">
 
-        {/* HEADER */}
-        <header className="text-center">
+        <header className="text-center space-y-2">
           <h1 className="text-4xl font-extrabold">🎬 AI Video Summarizer</h1>
-          <p className="text-slate-400 mt-2">
+          <p className="text-slate-400 text-sm">
             Paste YouTube link • Get AI summary • Download client-side
           </p>
         </header>
 
-        {/* INPUT */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-8 space-y-6">
+
           <input
-            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700"
-            placeholder="https://www.youtube.com/watch?v=..."
             value={url}
             onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700"
           />
 
           <button
             onClick={submitVideo}
             disabled={loading}
-            className={`w-full py-3 rounded-xl font-semibold ${
-              loading
-                ? "bg-slate-700"
-                : "bg-gradient-to-r from-blue-600 to-indigo-600"
-            }`}
+            className="w-full py-3 rounded-xl font-semibold bg-gradient-to-r from-blue-600 to-indigo-600"
           >
-            {loading ? "Processing…" : "✨ Generate Summary"}
+            {loading ? "Analyzing…" : "✨ Generate Summary"}
           </button>
 
-          {status && (
-            <p className="text-center text-sm text-blue-300">{status}</p>
-          )}
-
-          {jobId && (
-            <p className="text-xs text-center text-emerald-400">
-              Job ID: {jobId}
-            </p>
-          )}
+          {status && <p className="text-center text-blue-300">{status}</p>}
         </div>
 
-        {/* SUMMARY */}
         {summary && (
           <section className="space-y-6">
             <h2 className="text-2xl font-bold text-center">📄 Video Summary</h2>
 
-            <div className="bg-black/40 border border-slate-700 rounded-xl p-5 whitespace-pre-line">
-              {summary}
+            <div className="bg-black/40 border border-slate-700 rounded-2xl p-6">
+              <pre className="whitespace-pre-wrap text-slate-200">
+                {summary}
+              </pre>
             </div>
 
-            {/* DOWNLOAD BUTTONS */}
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex justify-center gap-4 flex-wrap">
               <button
-                onClick={downloadSummary}
+                onClick={downloadTxt}
                 className="px-5 py-2 bg-emerald-600 rounded-xl"
               >
                 📄 Summary (.txt)
@@ -157,7 +122,7 @@ export default function App() {
           </section>
         )}
 
-        <footer className="text-center text-xs text-slate-500 pt-10">
+        <footer className="text-center text-xs text-slate-500">
           2026 • AI Video Summarizer
         </footer>
       </div>
