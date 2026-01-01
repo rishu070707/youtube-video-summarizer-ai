@@ -1,71 +1,91 @@
 const express = require("express");
 const router = express.Router();
+const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const { exec } = require("child_process");
+const cloudinary = require("../config/cloudinary");
+const Job = require("../models/Job");
+const cleanUrl = require("../utils/cleanUrl");
 
-// ---------------------------
-// SUBMIT JOB
-// ---------------------------
-router.post("/submit", (req, res) => {
-  const { url } = req.body;
+const TMP = path.join(__dirname, "../tmp");
+if (!fs.existsSync(TMP)) fs.mkdirSync(TMP, { recursive: true });
 
-  if (!url) {
-    return res.status(400).json({ error: "URL is required" });
-  }
+/* =========================
+   SUBMIT VIDEO
+========================= */
+router.post("/submit", async (req, res) => {
+  const url = cleanUrl(req.body.url);
+  if (!url) return res.status(400).json({ error: "URL required" });
 
   const jobId = Date.now().toString();
-  const userId = "demo";
+  const base = `audio-${jobId}`;
+  const outTemplate = path.join(TMP, `${base}.%(ext)s`);
+  const audioFile = path.join(TMP, `${base}.mp3`);
 
-  // ✅ ABSOLUTE CORRECT PATH
-  const workerPath = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "worker",
-    "worker.py"
-  );
+  try {
+    // 1️⃣ Extract audio using yt-dlp binary
+    const yt = spawn("yt-dlp", [
+      "-f", "ba",
+      "-x",
+      "--audio-format", "mp3",
+      "--audio-quality", "5",
+      "--no-playlist",
+      "-o", outTemplate,
+      url
+    ]);
 
-  console.log("Worker path:", workerPath);
+    yt.on("error", err => {
+      console.error(err);
+      return res.status(500).json({ error: "yt-dlp failed" });
+    });
 
-  exec(
-    `python "${workerPath}" "${url}" "${jobId}" "${userId}"`,
-    (err, stdout, stderr) => {
-      if (err) {
-        console.error("Worker error:", err);
-        console.error(stderr);
-      } else {
-        console.log(stdout);
+    yt.on("close", async () => {
+      if (!fs.existsSync(audioFile)) {
+        return res.status(500).json({ error: "Audio extraction failed" });
       }
-    }
-  );
 
-  res.json({ jobId, message: "Processing started" });
+      // 2️⃣ Upload to Cloudinary
+      const upload = await cloudinary.uploader.upload(audioFile, {
+        resource_type: "video",
+        folder: "yt-audio",
+      });
+
+      // 3️⃣ Save job
+      await Job.create({
+        jobId,
+        youtubeUrl: url,
+        audioUrl: upload.secure_url,
+        status: "processing",
+      });
+
+      fs.unlinkSync(audioFile);
+
+      res.json({
+        jobId,
+        message: "Audio processed & uploaded",
+      });
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Processing failed" });
+  }
 });
 
-// ---------------------------
-// FETCH RESULTS
-// ---------------------------
-router.get("/result/:jobId", (req, res) => {
-  const jobId = req.params.jobId;
+/* =========================
+   GET RESULT
+========================= */
+router.get("/result/:jobId", async (req, res) => {
+  const job = await Job.findOne({ jobId: req.params.jobId });
 
-  const resultPath = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "worker",
-    "work",
-    "demo",
-    jobId,
-    "results.json"
-  );
-
-  if (!fs.existsSync(resultPath)) {
+  if (!job || job.status !== "completed") {
     return res.json({ ready: false });
   }
 
-  const data = JSON.parse(fs.readFileSync(resultPath, "utf8"));
-  res.json({ ready: true, data });
+  res.json({
+    ready: true,
+    data: job.summary,
+  });
 });
 
 module.exports = router;

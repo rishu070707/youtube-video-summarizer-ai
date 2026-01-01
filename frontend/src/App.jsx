@@ -1,119 +1,197 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
+const API_BASE = "http://localhost:4000";
+
+// 🔥 CLEAN YT URL (VERY IMPORTANT)
+const cleanUrl = (url) => url.split("&")[0];
+
 export default function App() {
   const [url, setUrl] = useState("");
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
 
-  // Cleanup polling on unmount
   useEffect(() => {
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-      }
-    };
+    return () => pollingRef.current && clearInterval(pollingRef.current);
   }, []);
 
+  /* ================= SUBMIT ================= */
   const submitVideo = async () => {
-    if (!url.trim()) return;
+    if (!url.trim() || loading) return;
 
-    setResult(null);
+    const finalUrl = cleanUrl(url);
+
+    setLoading(true);
+    setResult("");
     setJobId(null);
-    setStatus("Submitting video...");
+    setStatus("Submitting video…");
 
     try {
       const res = await axios.post(
-        "http://localhost:4000/api/video/submit",
-        { url }
+        `${API_BASE}/api/video/submit`,
+        { url: finalUrl }
       );
 
       const id = res.data.jobId;
       setJobId(id);
-      setStatus("Processing video... Please wait.");
+      setStatus("Processing video… please wait ⏳");
 
       pollingRef.current = setInterval(async () => {
         try {
           const r = await axios.get(
-            `http://localhost:4000/api/video/result/${id}`
+            `${API_BASE}/api/video/result/${id}`
           );
 
           if (r.data.ready) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
-
             setResult(r.data.data);
-            setStatus("Summary ready");
+            setStatus("Summary ready ✅");
+            setLoading(false);
           }
-        } catch (err) {
-          console.error("Polling error:", err);
+        } catch {
+          clearInterval(pollingRef.current);
+          setStatus("Server error ❌");
+          setLoading(false);
         }
       }, 3000);
     } catch (err) {
-      console.error("Submit error:", err);
-      setStatus("Submission failed");
+      console.error(err);
+      setStatus("Submission failed ❌");
+      setLoading(false);
     }
   };
 
+  /* ================= DOWNLOADS ================= */
+  const downloadAudio = () => {
+    window.open(
+      `${API_BASE}/api/download/audio?url=${encodeURIComponent(cleanUrl(url))}`,
+      "_blank"
+    );
+  };
+
+  const downloadVideo = () => {
+    window.open(
+      `${API_BASE}/api/download/video?url=${encodeURIComponent(cleanUrl(url))}`,
+      "_blank"
+    );
+  };
+
+  const downloadTxt = () => {
+    const blob = new Blob([result], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "summary.txt";
+    link.click();
+  };
+
+  /* ================= UI ================= */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white flex justify-center items-start p-10">
-      <div className="w-full max-w-3xl">
-        {/* INPUT CARD */}
-        <div className="bg-slate-900/80 p-6 rounded-xl shadow-lg">
-          <label htmlFor="url" className="block text-sm font-medium mb-2">
-            YouTube Video URL
-          </label>
+    <div className="min-h-screen bg-gradient-to-br from-[#020617] via-slate-900 to-black text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-4xl space-y-10">
 
-          <input
-            id="url"
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=..."
-            className="w-full p-3 rounded-lg bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+        {/* HEADER */}
+        <header className="text-center space-y-2">
+          <h1 className="text-4xl font-extrabold tracking-tight">
+            🎬 AI Video Summarizer
+          </h1>
+          <p className="text-slate-400 text-sm">
+            Paste a YouTube link • Get instant AI summary • Download everything
+          </p>
+        </header>
 
+        {/* CARD */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-8 space-y-6">
+
+          {/* INPUT */}
+          <div className="space-y-2">
+            <label className="text-sm text-slate-300">
+              YouTube Video URL
+            </label>
+
+            <input
+              type="text"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              className="w-full px-4 py-3 rounded-xl bg-black/40 border border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 outline-none transition"
+            />
+          </div>
+
+          {/* BUTTON */}
           <button
             onClick={submitVideo}
-            className="mt-4 w-full bg-blue-600 hover:bg-blue-700 py-3 rounded-lg font-semibold transition"
+            disabled={loading}
+            className={`w-full py-3 rounded-xl font-semibold tracking-wide transition-all duration-200 ${
+              loading
+                ? "bg-slate-700 cursor-not-allowed animate-pulse"
+                : "bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90"
+            }`}
           >
-            Submit Video
+            {loading ? "Analyzing video…" : "✨ Generate Summary"}
           </button>
+
+          {/* STATUS */}
+          {status && (
+            <div className="text-center space-y-1">
+              {jobId && (
+                <p className="text-xs text-emerald-400 font-mono">
+                  Job ID: {jobId}
+                </p>
+              )}
+              <p className="text-blue-300">{status}</p>
+            </div>
+          )}
         </div>
 
-        {/* STATUS */}
-        {jobId && (
-          <div className="mt-6 text-center">
-            <p className="text-green-400 font-mono">
-              Job ID: {jobId}
-            </p>
-            <p className="mt-2 text-blue-300">{status}</p>
-          </div>
-        )}
-
-        {/* RESULTS */}
+        {/* RESULT */}
         {result && (
-          <div className="mt-10 space-y-6">
-            <h2 className="text-2xl font-bold">Video Summary</h2>
+          <section className="space-y-6">
 
-            {result.scenes.map((scene, idx) => (
-              <div
-                key={scene.id || idx}
-                className="bg-slate-900/70 p-5 rounded-xl border border-slate-700"
+            <h2 className="text-2xl font-bold text-center">
+              📄 Video Summary
+            </h2>
+
+            <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 shadow-inner">
+              <p className="text-slate-200 leading-relaxed whitespace-pre-line">
+                {result}
+              </p>
+            </div>
+
+            {/* DOWNLOADS */}
+            <div className="flex flex-wrap justify-center gap-4">
+              <button
+                onClick={downloadTxt}
+                className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 transition text-sm font-medium"
               >
-                <p className="text-sm text-slate-400 mb-1">
-                  Scene {idx + 1} ({scene.start}s – {scene.end}s)
-                </p>
+                📄 Summary (.txt)
+              </button>
 
-                <p className="text-slate-200 leading-relaxed">
-                  {scene.summary || "No summary available"}
-                </p>
-              </div>
-            ))}
-          </div>
+              <button
+                onClick={downloadAudio}
+                className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 transition text-sm font-medium"
+              >
+                🔊 Audio
+              </button>
+
+              <button
+                onClick={downloadVideo}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 transition text-sm font-medium"
+              >
+                🎥 Video
+              </button>
+            </div>
+          </section>
         )}
+
+        {/* FOOTER */}
+        <footer className="text-center text-xs text-slate-500 pt-6">
+          2026 , AI Video Summarizer. All rights reserved.
+        </footer>
+
       </div>
     </div>
   );
