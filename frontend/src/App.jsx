@@ -3,14 +3,23 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 
-// 🔥 CLEAN YT URL (VERY IMPORTANT)
+// 🔥 CLEAN YT URL
 const cleanUrl = (url) => url.split("&")[0];
+
+// 🔥 Extract video ID
+const getVideoId = (url) => {
+  try {
+    return new URL(url).searchParams.get("v");
+  } catch {
+    return null;
+  }
+};
 
 export default function App() {
   const [url, setUrl] = useState("");
   const [jobId, setJobId] = useState(null);
   const [status, setStatus] = useState("");
-  const [result, setResult] = useState("");
+  const [summary, setSummary] = useState("");
   const [loading, setLoading] = useState(false);
   const pollingRef = useRef(null);
 
@@ -25,19 +34,18 @@ export default function App() {
     const finalUrl = cleanUrl(url);
 
     setLoading(true);
-    setResult("");
+    setSummary("");
     setJobId(null);
     setStatus("Submitting video…");
 
     try {
-      const res = await axios.post(
-        `${API_BASE}/api/video/submit`,
-        { url: finalUrl }
-      );
+      const res = await axios.post(`${API_BASE}/api/video/submit`, {
+        url: finalUrl,
+      });
 
       const id = res.data.jobId;
       setJobId(id);
-      setStatus("Processing video… please wait ⏳");
+      setStatus("Processing video… ⏳");
 
       pollingRef.current = setInterval(async () => {
         try {
@@ -48,7 +56,8 @@ export default function App() {
           if (r.data.ready) {
             clearInterval(pollingRef.current);
             pollingRef.current = null;
-            setResult(r.data.data);
+
+            setSummary(r.data.summary);
             setStatus("Summary ready ✅");
             setLoading(false);
           }
@@ -65,23 +74,32 @@ export default function App() {
     }
   };
 
-  /* ================= DOWNLOADS ================= */
+  /* ================= CLIENT DOWNLOADS ================= */
+
   const downloadAudio = () => {
+    const id = getVideoId(url);
+    if (!id) return;
+
+    // Audio-only (m4a / mp3 stream)
     window.open(
-      `${API_BASE}/api/download/audio?url=${encodeURIComponent(cleanUrl(url))}`,
+      `https://yewtu.be/latest_version?id=${id}&itag=140`,
       "_blank"
     );
   };
 
   const downloadVideo = () => {
+    const id = getVideoId(url);
+    if (!id) return;
+
+    // Best combined stream
     window.open(
-      `${API_BASE}/api/download/video?url=${encodeURIComponent(cleanUrl(url))}`,
+      `https://yewtu.be/latest_version?id=${id}`,
       "_blank"
     );
   };
 
   const downloadTxt = () => {
-    const blob = new Blob([result], { type: "text/plain" });
+    const blob = new Blob([summary], { type: "text/plain" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "summary.txt";
@@ -99,7 +117,7 @@ export default function App() {
             🎬 AI Video Summarizer
           </h1>
           <p className="text-slate-400 text-sm">
-            Paste a YouTube link • Get instant AI summary • Download everything
+            Paste a YouTube link • Get AI summary • Download client-side
           </p>
         </header>
 
@@ -148,7 +166,7 @@ export default function App() {
         </div>
 
         {/* RESULT */}
-        {result && (
+        {summary && (
           <section className="space-y-6">
 
             <h2 className="text-2xl font-bold text-center">
@@ -157,7 +175,7 @@ export default function App() {
 
             <div className="bg-black/40 border border-slate-700 rounded-2xl p-6 shadow-inner">
               <p className="text-slate-200 leading-relaxed whitespace-pre-line">
-                {result}
+                {summary}
               </p>
             </div>
 
@@ -189,7 +207,7 @@ export default function App() {
 
         {/* FOOTER */}
         <footer className="text-center text-xs text-slate-500 pt-6">
-          2026 , AI Video Summarizer. All rights reserved.
+          2026 • AI Video Summarizer
         </footer>
 
       </div>
