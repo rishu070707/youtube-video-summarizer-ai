@@ -4,7 +4,7 @@ const Job = require("../models/Job");
 const cleanUrl = require("../utils/cleanUrl");
 
 /* =========================
-   SUBMIT VIDEO (NO DOWNLOAD)
+   SUBMIT VIDEO (TEXT ONLY)
 ========================= */
 router.post("/submit", async (req, res) => {
   const url = cleanUrl(req.body.url);
@@ -16,7 +16,7 @@ router.post("/submit", async (req, res) => {
     jobId,
     youtubeUrl: url,
     status: "completed",
-    summary: "⚠️ Demo summary. Replace with AI pipeline.",
+    summary: "⚠️ Demo summary placeholder. AI logic goes here.",
   });
 
   res.json({ jobId });
