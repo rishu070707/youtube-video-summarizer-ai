@@ -19,79 +19,53 @@ const YTDLP = "yt-dlp";
 router.post("/submit", async (req, res) => {
   try {
     const url = cleanUrl(req.body.url);
-    if (!url) {
-      return res.status(400).json({ error: "URL required" });
-    }
+    if (!url) return res.status(400).json({ error: "URL required" });
 
     const jobId = Date.now().toString();
     const base = `audio-${jobId}`;
-    const outTemplate = path.join(TMP, `${base}.%(ext)s`);
     const audioFile = path.join(TMP, `${base}.mp3`);
 
-    console.log("▶️ Starting yt-dlp for:", url);
-
-    const yt = spawn(YTDLP, [
-      "-f", "ba",
+    const yt = spawn("yt-dlp", [
       "-x",
       "--audio-format", "mp3",
       "--audio-quality", "5",
       "--no-playlist",
-      "-o", outTemplate,
+      "-o", audioFile,
       url
     ]);
 
-    yt.stderr.on("data", (data) => {
-      console.error("yt-dlp stderr:", data.toString());
-    });
-
     yt.on("error", (err) => {
-      console.error("❌ yt-dlp spawn error:", err);
-      return res.status(500).json({ error: "yt-dlp execution failed" });
+      console.error("yt-dlp error:", err);
+      return res.status(500).json({ error: "yt-dlp failed" });
     });
 
     yt.on("close", async (code) => {
-      if (code !== 0) {
-        console.error("❌ yt-dlp exited with code:", code);
-        return res.status(500).json({ error: "yt-dlp failed" });
-      }
-
-      if (!fs.existsSync(audioFile)) {
-        console.error("❌ MP3 not found after yt-dlp");
+      if (code !== 0 || !fs.existsSync(audioFile)) {
         return res.status(500).json({ error: "Audio extraction failed" });
       }
 
-      try {
-        // Upload to Cloudinary
-        const upload = await cloudinary.uploader.upload(audioFile, {
-          resource_type: "video",
-          folder: "yt-audio",
-        });
+      const upload = await cloudinary.uploader.upload(audioFile, {
+        resource_type: "video",
+        folder: "yt-audio",
+      });
 
-        // Save job
-        await Job.create({
-          jobId,
-          youtubeUrl: url,
-          audioUrl: upload.secure_url,
-          status: "processing",
-        });
+      await Job.create({
+        jobId,
+        youtubeUrl: url,
+        audioUrl: upload.secure_url,
+        status: "processing",
+      });
 
-        fs.unlinkSync(audioFile);
+      fs.unlinkSync(audioFile);
 
-        return res.json({
-          jobId,
-          message: "Audio processed & uploaded",
-        });
-      } catch (err) {
-        console.error("❌ Cloudinary / DB error:", err);
-        return res.status(500).json({ error: "Upload failed" });
-      }
+      res.json({ jobId });
     });
-
   } catch (err) {
-    console.error("❌ Submit route crashed:", err);
-    return res.status(500).json({ error: "Internal server error" });
+    console.error(err);
+    res.status(500).json({ error: "Submit failed" });
   }
 });
+
 
 /* =========================
    GET RESULT
