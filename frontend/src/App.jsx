@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 
-const API_BASE = "https://youtube-video-summarizer-ai.onrender.com";
+const API_BASE = import.meta.env.VITE_API_BASE;
 
 // 🔥 CLEAN YT URL (VERY IMPORTANT)
 const cleanUrl = (url) => url.split("&")[0];
