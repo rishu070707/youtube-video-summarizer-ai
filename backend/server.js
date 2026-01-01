@@ -8,23 +8,25 @@ const downloadRoutes = require("./routes/download");
 
 const app = express();
 
-// DB connect
+// DB
 connectDB();
 
 // middleware
 app.use(cors());
 app.use(express.json());
 
-// ROUTES (IMPORTANT)
+// routes
 app.use("/api/video", videoRoutes);
-app.use("/api/download", downloadRoutes); // 🔥 THIS LINE IS MUST
+app.use("/api/download", downloadRoutes);
 
+// health check (IMPORTANT for Render)
 app.get("/", (req, res) => {
-  res.send("✅ AI Video Summarizer Backend Running");
+  res.send("AI Video Summarizer Backend Running");
 });
 
+// ✅ FIXED PORT HANDLING FOR RENDER
 const PORT = process.env.PORT || 4000;
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
