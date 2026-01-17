@@ -7,3 +7,7 @@ redis
 rq
 python-dotenv
 # For real usage, add: whisperx, openai, scenedetect, sentence-transformers, qdrant-client, faiss-cpu
+pymongo
+google-generativeai
+openai-whisper
+torch
