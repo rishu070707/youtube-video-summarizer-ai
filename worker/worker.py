@@ -130,9 +130,27 @@ def process_job(job_id: str):
 # -------------------------------
 # CLI ENTRY
 # -------------------------------
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        safe_print("Usage: python worker.py <jobId>")
-        sys.exit(1)
+import time
 
-    process_job(sys.argv[1])
+if __name__ == "__main__":
+    safe_print("🚀 Worker started and listening for jobs")
+
+    while True:
+        job = jobs.find_one({"status": "pending"})
+
+        if job:
+            try:
+                jobs.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"status": "processing"}}
+                )
+                process_job(job["jobId"])
+            except Exception as e:
+                safe_print("❌ Job error:", e)
+                jobs.update_one(
+                    {"_id": job["_id"]},
+                    {"$set": {"status": "failed"}}
+                )
+        else:
+            time.sleep(5)
+
