@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-AI Video Summarizer Worker — CLOUD VERSION
-------------------------------------------
-✔ MongoDB based job state
-✔ Cloudinary audio input
-✔ OpenAI Whisper transcription
+AI Video Summarizer Worker — CAPTIONS ONLY (FREE)
+-------------------------------------------------
+✔ MongoDB job queue
+✔ YouTube captions (no audio)
 ✔ Gemini Flash Lite summary
-✔ Stateless / Cloud safe
+✔ Railway safe
+✔ 100% free
 """
 
 from __future__ import annotations
 import os
+import time
 import sys
-import tempfile
-import requests
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from youtube_transcript_api import YouTubeTranscriptApi
 
 # -------------------------------
 # ENV
@@ -34,7 +34,8 @@ if not MONGO_URI:
 # -------------------------------
 def safe_print(*args):
     msg = " ".join(str(a) for a in args)
-    sys.stdout.buffer.write((msg + "\n").encode("utf-8", errors="ignore"))
+    sys.stdout.write(msg + "\n")
+    sys.stdout.flush()
 
 # -------------------------------
 # DB CONNECT
@@ -44,96 +45,82 @@ db = client["test"]
 jobs = db["jobs"]
 
 # -------------------------------
-# GEMINI
+# GEMINI SUMMARY
 # -------------------------------
 def summarize_with_gemini(text: str) -> str:
     if not text.strip():
-        return "No spoken content."
+        return "No captions available for this video."
 
     try:
         import google.generativeai as genai
+
         genai.configure(api_key=GEMINI_API_KEY)
 
-        model = genai.GenerativeModel("models/gemini-flash-lite-latest")
-        resp = model.generate_content(
-            "Summarize this video clearly in 2–3 sentences:\n\n" + text[:3500]
+        model = genai.GenerativeModel(
+            "models/gemini-flash-lite-latest"
         )
-        return resp.text.strip()
+
+        prompt = (
+            "Summarize this YouTube video clearly in 3–5 bullet points:\n\n"
+            + text[:3500]
+        )
+
+        response = model.generate_content(prompt)
+        return response.text.strip()
 
     except Exception as e:
-        safe_print("Gemini error:", e)
+        safe_print("❌ Gemini error:", e)
         return "Summary unavailable."
 
 # -------------------------------
-# TRANSCRIBE
+# YOUTUBE CAPTIONS
 # -------------------------------
-def transcribe_audio(audio_path: str) -> str:
-    import whisper
-    model = whisper.load_model("tiny")
-    result = model.transcribe(audio_path)
-    return result.get("text", "")
+def fetch_captions(video_id: str) -> str:
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        return " ".join([x["text"] for x in transcript])
+    except Exception as e:
+        safe_print("❌ Caption error:", e)
+        return ""
 
 # -------------------------------
-# MAIN JOB PROCESSOR
+# JOB PROCESSOR
 # -------------------------------
-def process_job(job_id: str):
+def process_job(job):
+    job_id = job["jobId"]
+    video_id = job.get("videoId")
+
     safe_print("▶ Processing job:", job_id)
 
-    job = jobs.find_one({"jobId": job_id})
-    if not job:
-        safe_print("❌ Job not found")
-        return
-
-    audio_url = job.get("audioUrl")
-    if not audio_url:
-        safe_print("❌ audioUrl missing")
+    if not video_id:
+        safe_print("❌ videoId missing")
         jobs.update_one(
-            {"jobId": job_id},
+            {"_id": job["_id"]},
             {"$set": {"status": "failed"}}
         )
         return
 
-    # ---------------------------
-    # DOWNLOAD AUDIO (TEMP FILE)
-    # ---------------------------
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-        audio_path = f.name
-        r = requests.get(audio_url)
-        f.write(r.content)
+    safe_print("📺 Fetching captions...")
+    transcript = fetch_captions(video_id)
 
-    # ---------------------------
-    # TRANSCRIBE
-    # ---------------------------
-    safe_print("🎧 Transcribing...")
-    transcript = transcribe_audio(audio_path)
-
-    # ---------------------------
-    # SUMMARY
-    # ---------------------------
-    safe_print("🧠 Summarizing...")
+    safe_print("🧠 Summarizing with Gemini...")
     summary = summarize_with_gemini(transcript)
 
-    # ---------------------------
-    # UPDATE DB
-    # ---------------------------
     jobs.update_one(
-        {"jobId": job_id},
+        {"_id": job["_id"]},
         {"$set": {
             "status": "completed",
             "summary": summary
         }}
     )
 
-    os.remove(audio_path)
     safe_print("✅ Job completed:", job_id)
 
 # -------------------------------
-# CLI ENTRY
+# WORKER LOOP
 # -------------------------------
-import time
-
 if __name__ == "__main__":
-    safe_print("🚀 Worker started and listening for jobs")
+    safe_print("🚀 Caption Worker started")
 
     while True:
         job = jobs.find_one({"status": "pending"})
@@ -144,13 +131,12 @@ if __name__ == "__main__":
                     {"_id": job["_id"]},
                     {"$set": {"status": "processing"}}
                 )
-                process_job(job["jobId"])
+                process_job(job)
             except Exception as e:
-                safe_print("❌ Job error:", e)
+                safe_print("❌ Worker error:", e)
                 jobs.update_one(
                     {"_id": job["_id"]},
                     {"$set": {"status": "failed"}}
                 )
         else:
             time.sleep(5)
-

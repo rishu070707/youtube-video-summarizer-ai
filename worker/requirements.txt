@@ -1,13 +1,4 @@
-
-yt-dlp
-ffmpeg-python
-pydub
-requests
-redis
-rq
-python-dotenv
-# For real usage, add: whisperx, openai, scenedetect, sentence-transformers, qdrant-client, faiss-cpu
 pymongo
+python-dotenv
 google-generativeai
-openai-whisper
-torch
+youtube-transcript-api
