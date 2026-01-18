@@ -6,22 +6,26 @@ export default function VideoView({ jobId }) {
   const playerRef = useRef(null);
 
   useEffect(() => {
-    if (!jobId) return;
+  if (!jobId) return;
 
-    const fetchResult = async () => {
-      try {
-        const res = await fetch(
-          `http://localhost:4000/api/video/result/${jobId}`
-        );
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        console.error("Failed to load result", err);
-      }
-    };
+  const fetchResult = async () => {
+    try {
+      const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
-    fetchResult();
-  }, [jobId]);
+      const res = await fetch(
+        `${BACKEND}/api/video/result/${jobId}`
+      );
+
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error("Failed to load result", err);
+    }
+  };
+
+  fetchResult();
+}, [jobId]);
+
 
   if (!data)
     return (
